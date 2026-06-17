@@ -1,0 +1,23 @@
+# ─── Dependencies ───
+node_modules/
+
+# ─── Rahasia (JANGAN PERNAH commit) ───
+.env
+.env.local
+.env.*.local
+
+# ─── Data runtime (reaction roles dll) ───
+data/
+
+# ─── Logs ───
+logs/
+*.log
+STOP
+
+# ─── OS / Editor ───
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp

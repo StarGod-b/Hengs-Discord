@@ -1,0 +1,44 @@
+# 🛠️ Setup Hengs Discord Bot
+
+Panduan dapetin semua value buat file `.env`.
+
+## 1. Bikin aplikasi & bot
+
+1. Buka https://discord.com/developers/applications
+2. **New Application** → kasih nama (mis. "Hengs")
+3. Tab **Bot**:
+   - **Reset Token** → copy → isi `DISCORD_TOKEN`
+   - Aktifkan 3 intent: **MESSAGE CONTENT**, **SERVER MEMBERS**, **PRESENCE**
+4. Tab **General Information** → **Application ID** → isi `DISCORD_CLIENT_ID`
+
+## 2. Invite bot ke server
+
+OAuth2 → **URL Generator** → scopes: `bot` + `applications.commands` → pilih permissions (paling gampang: `Administrator`) → copy URL → buka di browser → pilih server.
+
+## 3. Ambil ID server & channel
+
+Aktifkan **Developer Mode**: Settings → Advanced → Developer Mode (ON).
+
+- Klik-kanan **server** → Copy Server ID → `DISCORD_GUILD_ID`
+- Klik-kanan tiap **channel** → Copy Channel ID → isi `*_CHANNEL_ID`
+- Atau: jalanin bot, lalu ketik `/admin ids` buat scan otomatis semua channel.
+
+## 4. API key AI (buat chat via mention)
+
+- **Groq** (cepat, free): https://console.groq.com → `GROQ_API_KEY`
+- **OpenRouter** (fallback): https://openrouter.ai → `OPENROUTER_API_KEY`
+
+## 5. Jalankan
+
+```bash
+npm install
+npm run deploy   # daftarin slash commands ke server (sekali / tiap nambah command)
+npm start
+```
+
+> Auto-setup struktur server: jalanin `/admin setup` di server (bikin channel & kategori otomatis).
+
+## 🔐 Catatan keamanan
+
+- Token bocor (ke-share di chat/screenshot/commit)? **Langsung Reset Token** di Developer Portal, update `.env`.
+- File `.env` & folder `data/` otomatis di-ignore Git — aman dari ke-push nggak sengaja.
