@@ -15,8 +15,12 @@ function load() {
 }
 
 function save(data) {
-  fs.mkdirSync(path.dirname(FILE), { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify(data, null, 2));
+  try {
+    fs.mkdirSync(path.dirname(FILE), { recursive: true });
+    fs.writeFileSync(FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.error('[role-store] GAGAL simpan reaction-roles:', err.message);
+  }
 }
 
 function getMessageRoles(messageId) {

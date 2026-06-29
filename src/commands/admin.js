@@ -318,7 +318,7 @@ module.exports = {
               gsaWebhookUrl = wh.url;
             }
           }
-        } catch {}
+        } catch (err) { console.error('[setup] GSA webhook error:', err.message); }
 
         // ── Build .env hints ───────────────────────────────────────────────
         const envLines = [
@@ -630,7 +630,7 @@ module.exports = {
             roleStore.removeMessage(msgId);
           }
         }
-      } catch {}
+      } catch (err) { console.error('[getroles cleanup]', err.message); }
 
       const reused = [];
       const created = [];
@@ -688,6 +688,12 @@ module.exports = {
     // ── /admin restart ───────────────────────────────────────────────────────
     // Keluar dari proses → loop run-bot-forever otomatis nyalain lagi (~5 detik)
     else if (sub === 'restart') {
+      // KEAMANAN: process.exit cuma boleh OWNER. defaultMemberPermissions itu cuma petunjuk
+      // UI (nggak dienforce server-side) → tambah cek OWNER_ID. Set OWNER_ID di .env.
+      if (process.env.OWNER_ID && interaction.user.id !== process.env.OWNER_ID) {
+        await interaction.editReply('❌ Cuma owner yang boleh restart bot.');
+        return;
+      }
       await interaction.editReply('♻️ **Restarting Hengs...** Online lagi ~5 detik buat load update terbaru. 🔄');
       console.log(`♻️ Restart via /admin restart oleh ${interaction.user.tag}`);
       setTimeout(() => process.exit(0), 800);

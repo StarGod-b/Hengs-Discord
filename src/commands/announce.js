@@ -23,9 +23,16 @@ module.exports = {
     ),
 
   async execute(interaction, { state }) {
+    await interaction.deferReply({ ephemeral: true }); // defer dulu — cegah timeout 3 detik
     const message = interaction.options.getString('message');
     const title   = interaction.options.getString('title') || 'Pengumuman';
-    const ping    = interaction.options.getBoolean('ping') ?? false;
+    let   ping    = interaction.options.getBoolean('ping') ?? false;
+
+    // KEAMANAN: ping @everyone HANYA buat Administrator (cegah mass-mention abuse oleh
+    // holder "Manage Messages"). Non-admin tetap bisa announce, cuma tanpa ping.
+    if (ping && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+      ping = false;
+    }
 
     const channelId = process.env.ANNOUNCE_CHANNEL_ID;
     const channel   = channelId
@@ -33,10 +40,7 @@ module.exports = {
       : interaction.channel;
 
     if (!channel) {
-      await interaction.reply({
-        content: '❌ Channel announcements tidak ditemukan. Isi `ANNOUNCE_CHANNEL_ID` di `.env` dulu.',
-        ephemeral: true,
-      });
+      await interaction.editReply({ content: '❌ Channel announcements tidak ditemukan. Isi `ANNOUNCE_CHANNEL_ID` di `.env` dulu.' });
       return;
     }
 
@@ -50,14 +54,14 @@ module.exports = {
       })
       .setTimestamp();
 
-    await channel.send({
-      content: ping ? '@everyone' : undefined,
-      embeds: [embed],
-    });
+    try {
+      await channel.send({ content: ping ? '@everyone' : undefined, embeds: [embed] });
+    } catch (err) {
+      console.error('❌ announce send error:', err.message);
+      await interaction.editReply({ content: `❌ Gagal kirim pengumuman: ${err.message}` });
+      return;
+    }
 
-    await interaction.reply({
-      content: `✅ Pengumuman berhasil dikirim ke ${channel}!`,
-      ephemeral: true,
-    });
+    await interaction.editReply({ content: `✅ Pengumuman berhasil dikirim ke ${channel}!` });
   },
 };

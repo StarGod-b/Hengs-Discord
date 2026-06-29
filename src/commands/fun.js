@@ -70,7 +70,7 @@ module.exports = {
       try {
         const res = await fetch('https://api.quotable.io/random?tags=technology|success|wisdom');
         if (res.ok) quoteData = await res.json();
-      } catch {}
+      } catch (err) { console.warn('[fun quote] API gagal, pakai fallback lokal:', err.message); }
 
       // Fallback ke list lokal kalau API gagal
       if (!quoteData?.content) {

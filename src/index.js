@@ -9,7 +9,7 @@
 
 require('dotenv').config();
 const {
-  Client, GatewayIntentBits, Collection,
+  Client, GatewayIntentBits, Collection, Partials,
   Events, EmbedBuilder, PermissionFlagsBits, ActivityType,
 } = require('discord.js');
 const fs   = require('node:fs');
@@ -32,6 +32,10 @@ const client = new Client({
     GatewayIntentBits.GuildMessageReactions, // needed for reaction roles
     GatewayIntentBits.GuildVoiceStates,      // needed for voice (join + auto-rejoin)
   ],
+  // WAJIB buat reaction roles: tanpa partials, event reaksi di pesan LAMA (yang dikirim
+  // sebelum bot restart) nggak dikirim Discord → reaction roles mati senyap. Inilah yang
+  // bikin /admin rolereact "nggak jalan" kemarin.
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.User, Partials.GuildMember],
 });
 
 // ── Load slash commands ──────────────────────────────────────────────────────
@@ -280,7 +284,7 @@ client.on(Events.MessageCreate, async (msg) => {
   await msg.channel.sendTyping();
 
   try {
-    const reply = await agent.chat(text, msg.author.username);
+    const reply = await agent.chat(text, msg.author.id);
     // Discord max 2000 karakter per pesan
     await msg.reply(reply.substring(0, 2000));
   } catch (err) {
@@ -333,6 +337,9 @@ async function handleReaction(reaction, user, add) {
   // Fetch partial reactions/messages
   if (reaction.partial) {
     try { await reaction.fetch(); } catch { return; }
+  }
+  if (reaction.message.partial) {
+    try { await reaction.message.fetch(); } catch { return; }
   }
 
   const mapping = roleStore.getMessageRoles(reaction.message.id);
