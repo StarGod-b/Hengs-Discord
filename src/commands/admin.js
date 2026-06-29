@@ -47,6 +47,26 @@ module.exports = {
     .addSubcommand(sub => sub
       .setName('ids')
       .setDescription('Scan server dan output channel IDs untuk .env (tanpa bikin channel baru)')
+    )
+
+    .addSubcommand(sub => sub
+      .setName('rules')
+      .setDescription('Post embed peraturan server (otomatis ke channel rules)')
+    )
+
+    .addSubcommand(sub => sub
+      .setName('serverinfo')
+      .setDescription('Post embed info server (otomatis ke channel server-info)')
+    )
+
+    .addSubcommand(sub => sub
+      .setName('getroles')
+      .setDescription('Bikin role self-assign (Gamer/Developer/Artist/Student) + post reaction roles')
+    )
+
+    .addSubcommand(sub => sub
+      .setName('restart')
+      .setDescription('Restart bot biar load update terbaru (online lagi ~5 detik)')
     ),
 
   async execute(interaction, { state }) {
@@ -483,6 +503,194 @@ module.exports = {
       if (detected) embed.addFields({ name: 'Terdeteksi:', value: detected });
 
       await interaction.editReply({ embeds: [embed] });
+    }
+
+    // ── /admin rules ─────────────────────────────────────────────────────────
+    // Post embed peraturan ke channel rules (fallback: channel sekarang)
+    else if (sub === 'rules') {
+      const guild = interaction.guild;
+      const target = guild.channels.cache.find(c =>
+        c.type === ChannelType.GuildText && c.name.toLowerCase().includes('rules')
+      ) || interaction.channel;
+
+      const icon = guild.iconURL({ size: 256 }) || null;
+      const embed = new EmbedBuilder()
+        .setColor(0x5865F2)
+        .setAuthor({ name: `${guild.name} — Peraturan`, iconURL: icon || undefined })
+        .setThumbnail(icon)
+        .setTitle('📜 Baca & Patuhi Ya!')
+        .setDescription('Biar server tetap nyaman & asik buat semua, ada beberapa aturan dasar 🙏')
+        .addFields(
+          { name: '1. 🤝 Saling hormat', value: 'No toxic, bully, pelecehan, atau ujaran SARA. Perlakukan member lain sebaik kamu mau diperlakukan.' },
+          { name: '2. 🚫 No spam', value: 'Jangan flood chat, mention massal, atau promosi/iklan tanpa izin admin.' },
+          { name: '3. 🔞 Jaga konten', value: 'Dilarang konten NSFW, gore, atau apa pun yang ilegal.' },
+          { name: '4. 📁 Channel sesuai topik', value: 'Lihat nama & deskripsi channel sebelum kirim. Obrolan bebas ke **#ngobrol**.' },
+          { name: '5. 🔒 Privasi', value: 'Jangan sebar data pribadi orang lain (doxxing) atau screenshot chat tanpa izin.' },
+          { name: '6. 🎙️ Sopan di voice', value: 'No mic spam, ear-rape, atau ganggu obrolan orang lain.' },
+          { name: '7. 👮 Patuhi admin & Discord ToS', value: 'Ikuti arahan admin/mod, dan wajib taat [Discord ToS](https://discord.com/terms) & [Community Guidelines](https://discord.com/guidelines).' },
+        )
+        .setFooter({ text: 'Pelanggaran: warn → mute → kick → ban. Stay cool & have fun! 💙' })
+        .setTimestamp();
+
+      await target.send({ embeds: [embed] });
+      await interaction.editReply(`✅ Rules diposting di ${target}.`);
+    }
+
+    // ── /admin serverinfo ──────────────────────────────────────────────────────
+    else if (sub === 'serverinfo') {
+      const guild = interaction.guild;
+      const target = guild.channels.cache.find(c =>
+        c.type === ChannelType.GuildText && c.name.toLowerCase().includes('server-info')
+      ) || guild.channels.cache.find(c =>
+        c.type === ChannelType.GuildText && c.name.toLowerCase().includes('info')
+      ) || interaction.channel;
+
+      const icon = guild.iconURL({ size: 256 }) || null;
+      const owner = await guild.fetchOwner().catch(() => null);
+      const botCount = guild.members.cache.filter(m => m.user.bot).size;
+
+      const embed = new EmbedBuilder()
+        .setColor(0x5865F2)
+        .setAuthor({ name: guild.name, iconURL: icon || undefined })
+        .setThumbnail(icon)
+        .setTitle('📌 Tentang Server')
+        .setDescription('Komunitas santai buat **gaming**, **ngoding/tech**, & **mahasiswa** — tempat ngobrol, main bareng, belajar coding, dan sharing project. Selamat datang! 👋')
+        .addFields(
+          { name: '👑 Owner', value: owner ? `${owner.user.username}` : '—', inline: true },
+          { name: '👥 Member', value: `${guild.memberCount}`, inline: true },
+          { name: '📅 Dibuat', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:D>`, inline: true },
+          { name: '🗺️ Kategori', value: '💬 Community · 🎮 Gaming · 💻 Tech & Code · 🤖 Bot Center · 🔊 Voice' },
+          { name: '🤖 Bot Hengs', value: 'Mention **Henzzz Bot** buat AI chat. Coba `/study`, `/scrim`, `/fun`, `/voice`. Ada juga OwO, Carl-bot, & Lumina.' },
+          { name: '🎭 Ambil role', value: 'Ke **#get-roles** — pilih minat, game, warna nama, & notifikasi.' },
+          { name: '📜 Rules', value: 'Baca **#rules** sebelum mulai ngobrol ya.' },
+          { name: '💬 Mulai dari mana?', value: 'Kenalan di **#introductions**, ngobrol bebas di **#ngobrol**!' },
+        )
+        .setFooter({ text: `Henzzz · ${botCount} bot aktif · dibuat dengan ❤️` })
+        .setTimestamp();
+
+      await target.send({ embeds: [embed] });
+      await interaction.editReply(`✅ Server-info diposting di ${target}.`);
+    }
+
+    // ── /admin getroles ──────────────────────────────────────────────────────
+    // PAKAI role yang sudah ada aja (fuzzy match) — TIDAK bikin role baru.
+    // Hapus pesan get-roles lama dulu tiap re-run biar nggak numpuk.
+    else if (sub === 'getroles') {
+      const guild = interaction.guild;
+      // Fuzzy match: cocokin role yang udah ada walau ada emoji/variasi nama
+      const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const findRole = (name) => guild.roles.cache.find(x => {
+        const a = norm(x.name), b = norm(name);
+        return a === b || (b.length >= 3 && a.includes(b)) || (a.length >= 3 && b.includes(a));
+      });
+
+      const CATEGORIES = [
+        {
+          title: '🎭 Minat Kamu',
+          desc: 'React buat nunjukin minatmu!',
+          roles: [
+            { emoji: '🎮', name: 'Gamer',     color: 0x9B59B6 },
+            { emoji: '💻', name: 'Developer', color: 0x2ECC71 },
+            { emoji: '🎨', name: 'Artist',    color: 0xE91E63 },
+            { emoji: '📚', name: 'Student',   color: 0xF1C40F },
+          ],
+        },
+        {
+          title: '🕹️ Game yang Dimain',
+          desc: 'Biar gampang dicariin temen main (nyambung ke #lfg)!',
+          roles: [
+            { emoji: '🎯', name: 'Valorant',       color: 0xFF4655 },
+            { emoji: '🐉', name: 'Mobile Legends', color: 0x1E90FF },
+            { emoji: '🧱', name: 'Roblox',         color: 0xE2231A },
+          ],
+        },
+        {
+          title: '🔔 Notifikasi (opsional)',
+          desc: 'Mau di-ping pas ada update? Ambil role-nya biar nggak kelewatan.',
+          roles: [
+            { emoji: '📢', name: 'Announcements', color: 0xFAA61A },
+            { emoji: '🎉', name: 'Events',        color: 0xEB459E },
+          ],
+        },
+      ];
+
+      const target = guild.channels.cache.find(c =>
+        c.type === ChannelType.GuildText &&
+        (c.name.toLowerCase().includes('get-roles') || c.name.toLowerCase().includes('roles'))
+      ) || interaction.channel;
+
+      // Hapus pesan reaction-role lama di channel ini (anti-numpuk tiap re-run)
+      let deleted = 0;
+      try {
+        const stored = roleStore.getAllMessages();
+        for (const [msgId, info] of Object.entries(stored)) {
+          if (info && info.channelId === target.id) {
+            const old = await target.messages.fetch(msgId).catch(() => null);
+            if (old) { await old.delete().catch(() => {}); deleted += 1; }
+            roleStore.removeMessage(msgId);
+          }
+        }
+      } catch {}
+
+      const reused = [];
+      const created = [];
+      for (const cat of CATEGORIES) {
+        const resolved = {};
+        const present = [];
+        for (const r of cat.roles) {
+          let role = findRole(r.name);             // pakai role yang udah ada
+          if (role) {
+            reused.push(role.name);
+            // Role udah ada tapi BELUM punya icon → kasih icon (icon yang udah kamu set TIDAK ditimpa)
+            if (!role.unicodeEmoji && !role.icon) {
+              await role.setUnicodeEmoji(r.emoji).catch(() => {});
+            }
+          } else if (r.color !== undefined) {       // belum ada → bikin pakai warna, lalu set icon
+            role = await guild.roles.create({
+              name: r.name, color: r.color, mentionable: true,
+              reason: 'Self-assign role (get-roles)',
+            }).catch(() => null);
+            if (role) {
+              created.push(r.name);
+              // Set icon SETELAH dibuat (lebih reliabel daripada di opsi create)
+              await role.setUnicodeEmoji(r.emoji).catch(() => {});
+            }
+          }
+          if (role) { resolved[r.emoji] = role.id; present.push(r); }
+        }
+        if (present.length === 0) continue;
+
+        const desc = present.map(r => `${r.emoji} → **${r.name}**`).join('\n');
+        const embed = new EmbedBuilder()
+          .setColor(0x5865F2)
+          .setTitle(cat.title)
+          .setDescription(`${cat.desc}\n\n${desc}`)
+          .setFooter({ text: 'Klik reaksi lagi buat lepas role' });
+
+        const msg = await target.send({ embeds: [embed] });
+        for (const r of present) await msg.react(r.emoji).catch(() => {});
+        roleStore.setMessageRoles(msg.id, target.id, resolved);
+      }
+
+      if (reused.length === 0 && created.length === 0) {
+        await interaction.editReply('❌ Gagal. Pastikan bot punya permission **Manage Roles** & role Hengs ada DI ATAS role yang mau dikasih.');
+        return;
+      }
+
+      const lines = [
+        `✅ Get-roles diposting di ${target}${deleted ? ` (hapus ${deleted} pesan lama)` : ''}.`,
+        reused.length ? `♻️ Pakai role yang udah ada: ${[...new Set(reused)].join(', ')}` : '',
+        created.length ? `🆕 Role baru dibuat (udah ada warna; icon bisa kamu tambah manual di Server Settings): ${[...new Set(created)].join(', ')}` : '',
+      ].filter(Boolean).join('\n');
+      await interaction.editReply(lines);
+    }
+
+    // ── /admin restart ───────────────────────────────────────────────────────
+    // Keluar dari proses → loop run-bot-forever otomatis nyalain lagi (~5 detik)
+    else if (sub === 'restart') {
+      await interaction.editReply('♻️ **Restarting Hengs...** Online lagi ~5 detik buat load update terbaru. 🔄');
+      console.log(`♻️ Restart via /admin restart oleh ${interaction.user.tag}`);
+      setTimeout(() => process.exit(0), 800);
     }
   },
 };

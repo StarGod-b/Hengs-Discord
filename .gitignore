@@ -21,3 +21,8 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# ─── Windows launcher scripts (lokal, jangan masuk GitHub) ───
+*.bat
+*.vbs
+.wa-bot.lock

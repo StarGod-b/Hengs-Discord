@@ -8,11 +8,12 @@
     "deploy": "node src/deploy-commands.js"
   },
   "dependencies": {
-    "discord.js": "^14.15.0",
-    "openai": "^4.67.0",
-    "dotenv": "^16.4.5",
-    "@napi-rs/canvas": "^0.1.53",
     "@discordjs/voice": "^0.17.0",
+    "@napi-rs/canvas": "^0.1.53",
+    "discord.js": "^14.15.0",
+    "dotenv": "^16.4.5",
+    "libsodium-wrappers": "^0.8.4",
+    "openai": "^4.67.0",
     "tweetnacl": "^1.0.3"
   }
 }

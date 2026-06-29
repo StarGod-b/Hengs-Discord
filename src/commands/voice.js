@@ -9,6 +9,7 @@ const {
   entersState,
   getVoiceConnection,
 } = require('@discordjs/voice');
+const voiceStore = require('../utils/voice-store');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -74,6 +75,9 @@ module.exports = {
         // Tunggu sampai connected (maks 10s)
         await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
 
+        // Simpan channel ini → bot auto-rejoin pas nyala lagi
+        voiceStore.setVoiceChannel(interaction.guildId, channel.id);
+
         // Auto-reconnect kalau Discord disconnect (bukan manual leave)
         connection.on(VoiceConnectionStatus.Disconnected, async () => {
           try {
@@ -117,6 +121,7 @@ module.exports = {
         : 'voice channel';
 
       connection.destroy();
+      voiceStore.clearVoiceChannel(interaction.guildId); // stop auto-rejoin
 
       const embed = new EmbedBuilder()
         .setColor(0xE53935)

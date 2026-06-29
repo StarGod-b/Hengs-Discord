@@ -19,6 +19,8 @@ const state = require('./state');
 const { generateCard } = require('./utils/welcome-card');
 const { AttachmentBuilder } = require('discord.js');
 const roleStore = require('./utils/role-store');
+const voiceStore = require('./utils/voice-store');
+const { joinVoiceChannel, entersState, VoiceConnectionStatus } = require('@discordjs/voice');
 
 // ── Client setup ────────────────────────────────────────────────────────────
 const client = new Client({
@@ -28,6 +30,7 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMessageReactions, // needed for reaction roles
+    GatewayIntentBits.GuildVoiceStates,      // needed for voice (join + auto-rejoin)
   ],
 });
 
@@ -69,6 +72,16 @@ async function updateServerStats(guild) {
   }
 }
 
+// ── Kirim status ke channel bot-settings (log/kontrol Hengs) ─────────────────
+async function postBotSettings(guild, content) {
+  try {
+    const lc = c => c.name.toLowerCase();
+    const ch = guild.channels.cache.find(c => c.isTextBased?.() && lc(c).includes('bot-settings'))
+            || guild.channels.cache.find(c => c.isTextBased?.() && lc(c).includes('settings'));
+    if (ch) await ch.send(content);
+  } catch (e) { console.error('⚠️ postBotSettings error:', e.message); }
+}
+
 // ── Ready ────────────────────────────────────────────────────────────────────
 client.once(Events.ClientReady, async (c) => {
   console.log('\n✅ Discord Bot Online!');
@@ -97,6 +110,37 @@ client.once(Events.ClientReady, async (c) => {
   for (const guild of c.guilds.cache.values()) {
     await updateServerStats(guild).catch(() => {});
   }
+
+  // ── Auto-rejoin voice channel terakhir (kalau sebelumnya bot di voice) ──────
+  for (const guild of c.guilds.cache.values()) {
+    const channelId = voiceStore.getVoiceChannel(guild.id);
+    if (!channelId) continue;
+    const channel = guild.channels.cache.get(channelId);
+    if (!channel) { voiceStore.clearVoiceChannel(guild.id); continue; }
+    try {
+      const connection = joinVoiceChannel({
+        channelId: channel.id,
+        guildId: guild.id,
+        adapterCreator: guild.voiceAdapterCreator,
+        selfDeaf: true,
+        selfMute: true,
+      });
+      await entersState(connection, VoiceConnectionStatus.Ready, 15_000);
+      connection.on(VoiceConnectionStatus.Disconnected, async () => {
+        try {
+          await Promise.race([
+            entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
+            entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
+          ]);
+        } catch { connection.destroy(); }
+      });
+      console.log(`🔊 Auto-rejoined voice: ${channel.name}`);
+      await postBotSettings(guild, `🔊 **Auto-rejoin voice** — Hengs balik ke **${channel.name}**, siap nemenin lagi! 💪`);
+    } catch (e) {
+      console.error('⚠️ Auto-rejoin voice gagal:', e.message);
+      await postBotSettings(guild, `⚠️ Gagal auto-rejoin voice **${channel.name}**: \`${e.message}\``);
+    }
+  }
 });
 
 // ── Welcome member baru ──────────────────────────────────────────────────────
@@ -108,14 +152,23 @@ client.on(Events.GuildMemberAdd, async (member) => {
 
   try {
     const cardBuffer = await generateCard(member, 'welcome');
-    const ch = (id) => (id ? ` di <#${id}>` : '');
+    // Cari channel by env ID, fallback by nama → biar selalu nge-link (clickable)
+    const g = member.guild;
+    const linkCh = (envId, ...names) => {
+      let c = envId && g.channels.cache.get(envId);
+      if (!c) c = g.channels.cache.find(x => x.isTextBased?.() && names.some(n => x.name.toLowerCase().includes(n)));
+      return c ? `<#${c.id}>` : null;
+    };
+    const rulesCh = linkCh(process.env.RULES_CHANNEL_ID, 'rules');
+    const rolesCh = linkCh(process.env.ROLES_CHANNEL_ID, 'get-roles', 'roles');
+    const annCh   = linkCh(process.env.ANNOUNCE_CHANNEL_ID, 'announcement', 'announce');
     const embed = new EmbedBuilder()
       .setColor(0x5865F2)
       .setDescription(
-        `👋 Halo <@${member.id}>! Selamat datang di **${member.guild.name}**! 🎉\n\n` +
-        `📜 Baca dulu **rules**${ch(process.env.RULES_CHANNEL_ID)}\n` +
-        `🎭 Ambil **role** kamu${ch(process.env.ROLES_CHANNEL_ID)}\n` +
-        `📢 Info & pengumuman${ch(process.env.ANNOUNCE_CHANNEL_ID)}\n\n` +
+        `👋 Halo <@${member.id}>! Selamat datang di **${g.name}**! 🎉\n\n` +
+        `📜 Baca dulu rules di ${rulesCh || '**#rules**'}\n` +
+        `🎭 Ambil role kamu di ${rolesCh || '**#get-roles**'}\n` +
+        `📢 Cek pengumuman di ${annCh || '**#announcements**'}\n\n` +
         `Butuh bantuan atau mau ngobrol? Tinggal **mention aku** (@Hengs Bot) ya — atau coba \`/fun\` & \`/study\`! 🤖`
       )
       .setTimestamp();
@@ -178,6 +231,34 @@ client.on(Events.GuildMemberRemove, async (member) => {
 
   // Update stats
   await updateServerStats(member.guild).catch(() => {});
+});
+
+// ── Boost celebration ─────────────────────────────────────────────────────────
+// Hengs ngucapin pas ada member mulai nge-boost server
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+  if (oldMember.premiumSince || !newMember.premiumSince) return; // cuma pas BARU mulai boost
+  const g = newMember.guild;
+  const findCh = (envId, ...names) => {
+    let c = envId && g.channels.cache.get(envId);
+    if (!c) c = g.channels.cache.find(x => x.isTextBased?.() && names.some(n => x.name.toLowerCase().includes(n)));
+    return c;
+  };
+  const channel = findCh(process.env.ANNOUNCE_CHANNEL_ID, 'announcement', 'announce')
+    || findCh(process.env.WELCOME_CHANNEL_ID, 'welcome');
+  if (!channel) return;
+  try {
+    const embed = new EmbedBuilder()
+      .setColor(0xF47FFF)
+      .setTitle('💜 SERVER BOOST!')
+      .setDescription(`Makasih banyak <@${newMember.id}> udah nge-**boost** ${g.name}! 🚀✨\n\nKamu bikin server makin kece — big love! 💜`)
+      .setThumbnail(newMember.user.displayAvatarURL({ size: 256 }))
+      .setFooter({ text: `Total boost server: ${g.premiumSubscriptionCount || 0}` })
+      .setTimestamp();
+    await channel.send({ content: `<@${newMember.id}>`, embeds: [embed] });
+    console.log(`💜 Boost dari ${newMember.user.username}`);
+  } catch (err) {
+    console.error('❌ Boost message error:', err.message);
+  }
 });
 
 // ── AI Chat via mention ──────────────────────────────────────────────────────
