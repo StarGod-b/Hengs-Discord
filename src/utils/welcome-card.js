@@ -627,7 +627,7 @@ async function drawAvatar(ctx, loadImage, data, theme) {
   try {
     image = await loadRemoteImage(loadImage, data.avatarUrl);
   } catch (error) {
-    console.warn('[welcome-card] Avatar could not be loaded:', error.message);
+    console.warn('[welcome-card] Avatar gagal dimuat:', error.message, '| URL:', data.avatarUrl);
   }
 
   if (image) {

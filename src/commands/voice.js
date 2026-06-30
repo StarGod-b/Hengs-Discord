@@ -88,6 +88,7 @@ module.exports = {
             // Reconnecting...
           } catch {
             connection.destroy(); // Benar-benar disconnect
+            voiceStore.clearVoiceChannel(interaction.guildId); // jangan auto-rejoin channel mati ini
           }
         });
 

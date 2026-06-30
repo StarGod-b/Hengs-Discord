@@ -136,7 +136,10 @@ client.once(Events.ClientReady, async (c) => {
             entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
             entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
           ]);
-        } catch { connection.destroy(); }
+        } catch {
+          connection.destroy();
+          voiceStore.clearVoiceChannel(guild.id); // disconnect beneran → jangan auto-rejoin channel ini lagi
+        }
       });
       console.log(`🔊 Auto-rejoined voice: ${channel.name}`);
       await postBotSettings(guild, `🔊 **Auto-rejoin voice** — Hengs balik ke **${channel.name}**, siap nemenin lagi! 💪`);

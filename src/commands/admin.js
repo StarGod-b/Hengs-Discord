@@ -532,7 +532,12 @@ module.exports = {
         .setFooter({ text: 'Pelanggaran: warn → mute → kick → ban. Stay cool & have fun! 💙' })
         .setTimestamp();
 
-      await target.send({ embeds: [embed] });
+      try {
+        await target.send({ embeds: [embed] });
+      } catch (err) {
+        await interaction.editReply(`❌ Gagal kirim rules ke ${target} (cek izin bot di channel itu): ${err.message}`);
+        return;
+      }
       await interaction.editReply(`✅ Rules diposting di ${target}.`);
     }
 
@@ -568,7 +573,12 @@ module.exports = {
         .setFooter({ text: `Henzzz · ${botCount} bot aktif · dibuat dengan ❤️` })
         .setTimestamp();
 
-      await target.send({ embeds: [embed] });
+      try {
+        await target.send({ embeds: [embed] });
+      } catch (err) {
+        await interaction.editReply(`❌ Gagal kirim server-info ke ${target} (cek izin bot): ${err.message}`);
+        return;
+      }
       await interaction.editReply(`✅ Server-info diposting di ${target}.`);
     }
 

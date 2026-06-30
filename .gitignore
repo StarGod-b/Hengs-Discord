@@ -26,3 +26,7 @@ desktop.ini
 *.bat
 *.vbs
 .wa-bot.lock
+
+# ─── Docs pribadi & catatan internal ───
+docs/
+CHANGELOG.md
